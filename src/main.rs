@@ -2,7 +2,7 @@ use std::env;
 
 use dotenv::dotenv;
 use lazy_static::lazy_static;
-use reqwest::{Response, Url};
+
 use serenity::client::bridge::gateway::GatewayIntents;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
@@ -57,18 +57,10 @@ async fn get_discord(username: String) -> Option<String> {
             if let Some(links) = social_media.get("links") {
                 if let Some(discord) = links.get("DISCORD") {
                     return Some(discord.to_string());
-                } else {
-                    println!("discord")
-                };
-            } else {
-                println!("links")
-            };
-        } else {
-            println!("SOCIAL MEDIA")
-        };
-    } else {
-        println!("{}", json.get("success").expect("aa"))
-    };
+                }
+            }
+        }
+    }
 
     None
 }
