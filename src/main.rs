@@ -18,6 +18,8 @@ lazy_static! {
     static ref PREFIX: String = env::var("PREFIX").expect("Please add a PREFIX to the .env");
     static ref API_KEY: String =
         env::var("HYPIXEL_API_KEY").expect("Please add a HYPIXEL_API_KEY to the .env");
+    static ref VERIFIED_ROLE: String =
+        env::var("VERIFIED_ROLE").expect("Please add a VERIFIED_ROLE to the .env");
     static ref COMMAND: String = format!("{}verify", PREFIX.to_string());
 }
 
@@ -37,6 +39,12 @@ enum HypixelRanks {
     MVP,
     MVPPLUS,
     MVPPLUSPLUS,
+}
+
+struct ApiInfo {
+    discord: String,
+    rank: HypixelRanks,
+    username: String,
 }
 
 async fn get_rank_role(rank: HypixelRanks, ctx: &Context, msg: &Message) -> Option<Role> {
@@ -93,7 +101,18 @@ fn get_rank(api_response: &Value) -> HypixelRanks {
     return HypixelRanks::Default;
 }
 
-async fn get_info(username: String) -> Result<(String, HypixelRanks), PossibleErrors> {
+fn get_username(api_response: &Value) -> String {
+    return api_response
+        .get("player")
+        .unwrap()
+        .get("displayname")
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string();
+}
+
+async fn get_info(username: String) -> Result<ApiInfo, PossibleErrors> {
     let client = reqwest::ClientBuilder::new()
         .timeout(Duration::from_secs(20))
         .build()
@@ -152,15 +171,19 @@ async fn get_info(username: String) -> Result<(String, HypixelRanks), PossibleEr
         return Err(HypixelAPIError);
     }
     let rank = get_rank(&json);
+    let username = get_username(&json);
 
     if let Some(player) = json.get("player") {
         if let Some(social_media) = player.get("socialMedia") {
             if let Some(links) = social_media.get("links") {
                 if let Some(discord) = links.get("DISCORD") {
                     //slice quotation marks off string
-                    let discord = discord;
                     let sliced = &discord.to_string()[1..discord.to_string().len() - 1];
-                    return Ok((sliced.to_string(), rank));
+                    return Ok(ApiInfo {
+                        discord: sliced.to_string(),
+                        rank,
+                        username,
+                    });
                 }
             }
         }
@@ -253,7 +276,11 @@ impl EventHandler for Handler {
             return;
         }
 
-        let (linked_discord, rank) = discord.ok().unwrap();
+        let discord = discord.ok().unwrap();
+        let linked_discord = discord.discord;
+        let rank = discord.rank;
+        let username = discord.username;
+
         let user_discord: String =
             msg.author.name.to_string() + "#" + &*msg.author.discriminator.to_string();
 
@@ -271,7 +298,7 @@ impl EventHandler for Handler {
 
         if let Some(guild_id) = msg.guild_id {
             if let Some(guild) = guild_id.to_guild_cached(&ctx).await {
-                if let Some(role_id) = guild.role_by_name("Hypixel Verified") {
+                if let Some(role_id) = guild.role_by_name(VERIFIED_ROLE.as_str()) {
                     if let Err(_) = member.add_role(&ctx, role_id).await {
                     } else {
                         //add new rank role and remove existing ones
@@ -297,12 +324,17 @@ impl EventHandler for Handler {
                         //add current rank role
                         if let Some(role) = get_rank_role(rank, &ctx, &msg).await {
                             if let Err(_) = member.add_role(&ctx, role.id).await {
-                                say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
+                                say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles. Also make sure the roles exist.".to_string(), ctx, msg).await;
                                 return;
                             }
                         }
+                        if let Err(_) = member.edit(&ctx, |m| m.nickname(username)).await {
+                            say_something("The bot was unable to change your nickname. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign change your nickname.".to_string(), ctx, msg).await;
+                            return;
+                        }
+
                         say_something(
-                            "You now have the verified Role and the role of your Rank!".to_string(),
+                            "You now have all the roles and your Nickname was changed to your Minecraft Username.".to_string(),
                             ctx,
                             msg,
                         )
