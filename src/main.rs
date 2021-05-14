@@ -1,7 +1,11 @@
 use std::env;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::Path;
 use std::time::Duration;
 
 use dotenv::dotenv;
+use json::JsonValue;
 use lazy_static::lazy_static;
 use serde_json::Value;
 use serenity::client::bridge::gateway::GatewayIntents;
@@ -9,6 +13,7 @@ use serenity::model::guild::Role;
 use serenity::model::{channel::Message, gateway::Ready, guild::Member, id::GuildId};
 use serenity::Client;
 use serenity::{async_trait, prelude::*};
+use tokio::runtime::Runtime;
 
 use crate::PossibleErrors::{DiscordNotLinked, HypixelAPIError, InvalidUsername, MojangAPIError};
 
@@ -198,6 +203,72 @@ async fn say_something(message: String, ctx: Context, msg: Message) {
     return;
 }
 
+async fn handle_messages(member: Member) {
+    //make sure file exists
+    let path = Path::new("messages.json");
+    let exists = path.exists();
+    //create file if it doesn't exist
+    if !exists {
+        let file = File::create(path);
+        if file.is_err() {
+            println!("Error while creating messages file.");
+            return;
+        }
+        if let Err(_) = file.unwrap().write_all("{}".as_bytes()) {
+            println!("Error while writing to file");
+            return;
+        }
+    }
+    //file exists now, getting content
+    let mut file = File::open(path).unwrap();
+    if let Err(_) = file.flush() {
+        println!("Some error occurred");
+        return;
+    }
+    let mut contents = String::new();
+    if let Err(_) = file.read_to_string(&mut contents) {
+        println!("Error while reading file");
+        return;
+    }
+
+    //parsing content
+    let json = json::parse(contents.as_str());
+    if json.is_err() {
+        println!("Error while parsing JSON");
+        return;
+    }
+
+    let mut json = json.unwrap();
+    //enter messages
+    if !json.has_key("messages") {
+        json["messages"] = JsonValue::new_object();
+    }
+    let messages = &mut json["messages"];
+
+    //enter guildId
+    let guild_id = member.guild_id.as_u64();
+    if !messages.has_key(guild_id.to_string().as_str()) {
+        messages[guild_id.to_string().as_str()] = JsonValue::new_object();
+    }
+
+    let guild = &mut messages[guild_id.to_string().as_str()];
+    //check if userId is already present
+    let member_id = member.user.id.as_u64().to_string();
+    if guild.has_key(member_id.as_str()) {
+        //increment messages by one
+        guild[member_id.as_str()] = JsonValue::from(guild[member_id.as_str()].as_i8().unwrap() + 1);
+    } else {
+        //add user to guild and set messages to 1
+        guild[member_id.as_str()] = JsonValue::from(1);
+    }
+
+    let mut file = File::create(path).unwrap();
+    if let Err(err) = file.write_all(json.dump().to_string().as_bytes()) {
+        println!("Error while writing file. {}", err);
+        return;
+    }
+}
+
 struct Handler;
 
 #[async_trait]
@@ -205,16 +276,21 @@ impl EventHandler for Handler {
     async fn guild_member_addition(&self, ctx: Context, guild_id: GuildId, mut new_member: Member) {
         if let Some(guild) = guild_id.to_guild_cached(&ctx).await {
             if let Some(role_id) = guild.role_by_name("Member") {
-                if let Err(why) = new_member.add_role(&ctx, role_id).await {
-                    println!("Error while adding role: {}", why)
-                }
+                if let Err(_) = new_member.add_role(&ctx, role_id).await {}
             }
         }
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
-        //check if its the actual command and not a bot
-        if msg.author.bot || !msg.content.starts_with(&COMMAND.to_string()) {
+        if msg.author.bot {
+            return;
+        }
+        //handle message addition async
+        let handle = handle_messages(msg.member(&ctx).await.unwrap());
+        tokio::spawn(async { handle.await });
+
+        //check if its the actual command
+        if !msg.content.starts_with(&COMMAND.to_string()) {
             return;
         }
 
@@ -338,14 +414,14 @@ impl EventHandler for Handler {
                             ctx,
                             msg,
                         )
-                        .await;
+                            .await;
                         return;
                     }
                 }
             }
         }
         //when we are here some kind of Error occurred
-        say_something("Some kind of Error occurred while trying to give you the Verified Role. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
+        say_something("Some Error occurred while trying to give you the Verified Role. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
         return;
     }
 
@@ -356,6 +432,9 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() {
+    let rt = Runtime::new().unwrap();
+    let _ = rt.enter();
+
     dotenv().expect("please add a .env");
     let mut client = Client::builder(TOKEN.to_string())
         .intents(
