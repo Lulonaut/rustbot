@@ -23,10 +23,6 @@ pub async fn handle_messages(member: Member) {
     }
     //file exists now, getting content
     let mut file = File::open(path).unwrap();
-    if let Err(_) = file.flush() {
-        println!("Some error occurred");
-        return;
-    }
     let mut contents = String::new();
     if let Err(_) = file.read_to_string(&mut contents) {
         println!("Error while reading file");
