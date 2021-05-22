@@ -1,169 +1,172 @@
 use std::time::Duration;
 
 use serde_json::Value;
+use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::guild::Role;
 use serenity::prelude::*;
 
+use crate::commands::command::Command;
 use crate::commands::verify_command::PossibleErrors::{
     DiscordNotLinked, HypixelAPIError, InvalidUsername, MojangAPIError,
 };
 use crate::say_something;
 
-pub async fn execute_command(
-    ctx: Context,
-    msg: Message,
-    command: String,
-    prefix: String,
-    role_name: String,
-    api_key: String,
-) {
-    if msg.author.bot {
-        return;
-    }
+pub struct VerifyCommandArgs {
+    pub prefix: String,
+    pub command: String,
+    pub api_key: String,
+    pub role_name: String,
+}
 
-    //check if its the actual command
-    if !msg.content.starts_with(&command) {
-        return;
-    }
-
-    //check for correct usage
-    let args = msg.content.split(" ");
-    if args.count() != 2 {
-        say_something(
-            format!("Invalid usage: `{}verify Username`", prefix),
-            ctx,
-            msg,
-        )
-        .await;
-        return;
-    }
-    //get username
-    let mut iter = msg.content.splitn(2, " ");
-    let _ = iter.next().unwrap();
-    let username = iter.next().unwrap();
-    if 3 > username.len() || username.len() > 16 {
-        say_something(
-            format!(
-                "Your Username is `{}` characters long, which is impossible (3-16 characters). Please provide a valid Username and try again.",
-                username.len().to_string()
-            ),
-            ctx,
-            msg,
-        )
-            .await;
-        return;
-    }
-    //get discord linked to username
-    let discord = get_info(String::from(username), api_key).await;
-    if discord.is_err() {
-        let error = discord.err().unwrap();
-        if error == PossibleErrors::DiscordNotLinked {
-            say_something("This User doesn't have any Discord linked on Hypixel. If you just changed it wait a few minutes and try again.".to_string(), ctx, msg).await;
+#[async_trait]
+impl Command for VerifyCommandArgs {
+    async fn execute(&self, ctx: &Context, msg: &Message) {
+        if !msg.content.starts_with(&self.command) {
             return;
         }
+        let ctx = ctx.clone();
+        let msg = msg.clone();
 
-        if error == PossibleErrors::MojangAPIError {
-            say_something("There was an Error while contacting the Mojang API or it returned bad data (maybe an invalid Username). Please try again later.".to_string(), ctx, msg).await;
-            return;
-        }
-        if error == PossibleErrors::HypixelAPIError {
-            say_something("There was an Error while contacting the Hypixel API or it returned bad data. Please try again later.".to_string(), ctx, msg).await;
-            return;
-        }
-        if error == PossibleErrors::InvalidUsername {
+        //check for correct usage
+        let args = msg.content.split(" ");
+        if args.count() != 2 {
             say_something(
-                "Invalid Username (no UUID from Mojang API). Please try again.".to_string(),
+                format!("Invalid usage: `{}verify Username`", self.prefix),
                 ctx,
                 msg,
             )
             .await;
             return;
         }
+        //get username
+        let mut iter = msg.content.splitn(2, " ");
+        let _ = iter.next().unwrap();
+        let username = iter.next().unwrap();
+        if 3 > username.len() || username.len() > 16 {
+            say_something(
+                format!(
+                    "Your Username is `{}` characters long, which is impossible (3-16 characters). Please provide a valid Username and try again.",
+                    username.len().to_string()
+                ),
+                ctx,
+                msg,
+            )
+                .await;
+            return;
+        }
+        //get discord linked to username
+        let api_key = &self.api_key;
+        let api_key = api_key.clone();
+        let discord = get_info(String::from(username), api_key).await;
+        if discord.is_err() {
+            let error = discord.err().unwrap();
+            if error == PossibleErrors::DiscordNotLinked {
+                say_something("This User doesn't have any Discord linked on Hypixel. If you just changed it wait a few minutes and try again.".to_string(), ctx, msg).await;
+                return;
+            }
 
-        say_something("There was an unhandled Error :(".to_string(), ctx, msg).await;
-        return;
-    }
+            if error == PossibleErrors::MojangAPIError {
+                say_something("There was an Error while contacting the Mojang API or it returned bad data (maybe an invalid Username). Please try again later.".to_string(), ctx, msg).await;
+                return;
+            }
+            if error == PossibleErrors::HypixelAPIError {
+                say_something("There was an Error while contacting the Hypixel API or it returned bad data. Please try again later.".to_string(), ctx, msg).await;
+                return;
+            }
+            if error == PossibleErrors::InvalidUsername {
+                say_something(
+                    "Invalid Username (no UUID from Mojang API). Please try again.".to_string(),
+                    ctx,
+                    msg,
+                )
+                .await;
+                return;
+            }
 
-    let discord = discord.ok().unwrap();
-    let linked_discord = discord.discord;
-    let rank = discord.rank;
-    let username = discord.username;
+            say_something("There was an unhandled Error :(".to_string(), ctx, msg).await;
+            return;
+        }
 
-    let user_discord: String =
-        msg.author.name.to_string() + "#" + &*msg.author.discriminator.to_string();
+        let discord = discord.ok().unwrap();
+        let linked_discord = discord.discord;
+        let rank = discord.rank;
+        let username = discord.username;
 
-    if !(linked_discord == user_discord) {
-        say_something(format!("The linked Username `{}` doesn't match your Discord Username: `{}`. If you just changed this wait a bit and try again.", linked_discord, user_discord), ctx, msg).await;
-        return;
-    }
-    //assign Verified role
-    let member = msg.member(&ctx).await;
-    if member.is_err() {
-        say_something("There was an Error while fetching your profile from the Discord API and therefore the bot can't assign you the roles. Please try again later".to_string(), ctx, msg).await;
-        return;
-    }
-    let mut member = member.unwrap();
+        let user_discord: String =
+            msg.author.name.to_string() + "#" + &*msg.author.discriminator.to_string();
 
-    if let Some(guild_id) = msg.guild_id {
-        if let Some(guild) = guild_id.to_guild_cached(&ctx).await {
-            println!("{}", role_name);
-            if let Some(role_id) = guild.role_by_name(&*role_name) {
-                if let Err(err) = member.add_role(&ctx, role_id).await {
-                    println!("error while adding role {}", err);
-                } else {
-                    //add new rank role and remove existing ones
-                    let current_roles = &member.roles;
-                    for i in current_roles {
-                        if let Some(role) = i.to_role_cached(&ctx).await {
-                            //remove existing rank roles
-                            if role.name == "VIP".to_string()
-                                || role.name == "VIP+".to_string()
-                                || role.name == "MVP".to_string()
-                                || role.name == "MVP+".to_string()
-                                || role.name == "MVP++".to_string()
-                            {
-                                //is it so hard to reference a variable a few times without borrowing and copying and whatever?
-                                let mut member2 = msg.member(&ctx).await.unwrap();
-                                if let Err(_) = member2.remove_role(&ctx, i).await {
-                                    say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
-                                    return;
+        if !(linked_discord == user_discord) {
+            say_something(format!("The linked Username `{}` doesn't match your Discord Username: `{}`. If you just changed this wait a bit and try again.", linked_discord, user_discord), ctx, msg).await;
+            return;
+        }
+        //assign Verified role
+        let member = msg.member(&ctx).await;
+        if member.is_err() {
+            say_something("There was an Error while fetching your profile from the Discord API and therefore the bot can't assign you the roles. Please try again later".to_string(), ctx, msg).await;
+            return;
+        }
+        let mut member = member.unwrap();
+
+        if let Some(guild_id) = msg.guild_id {
+            if let Some(guild) = guild_id.to_guild_cached(&ctx).await {
+                if let Some(role_id) = guild.role_by_name(&*self.role_name) {
+                    if let Err(err) = member.add_role(&ctx, role_id).await {
+                        println!("error while adding role {}", err);
+                    } else {
+                        //add new rank role and remove existing ones
+                        let current_roles = &member.roles;
+                        for i in current_roles {
+                            if let Some(role) = i.to_role_cached(&ctx).await {
+                                //remove existing rank roles
+                                if role.name == "VIP".to_string()
+                                    || role.name == "VIP+".to_string()
+                                    || role.name == "MVP".to_string()
+                                    || role.name == "MVP+".to_string()
+                                    || role.name == "MVP++".to_string()
+                                {
+                                    //is it so hard to reference a variable a few times without borrowing and copying and whatever?
+                                    let mut member2 = msg.member(&ctx).await.unwrap();
+                                    if let Err(_) = member2.remove_role(&ctx, i).await {
+                                        say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
+                                        return;
+                                    }
                                 }
                             }
                         }
-                    }
-                    //add current rank role
-                    if let Some(role) = get_rank_role(rank, &ctx, &msg).await {
-                        if let Err(_) = member.add_role(&ctx, role.id).await {
-                            say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles. Also make sure the roles exist.".to_string(), ctx, msg).await;
+                        //add current rank role
+                        if let Some(role) = get_rank_role(rank, &ctx, &msg).await {
+                            if let Err(_) = member.add_role(&ctx, role.id).await {
+                                say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles. Also make sure the roles exist.".to_string(), ctx, msg).await;
+                                return;
+                            }
+                        }
+                        if let Err(_) = member.edit(&ctx, |m| m.nickname(username)).await {
+                            say_something("The bot was unable to change your nickname. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign change your nickname.".to_string(), ctx, msg).await;
                             return;
                         }
-                    }
-                    if let Err(_) = member.edit(&ctx, |m| m.nickname(username)).await {
-                        say_something("The bot was unable to change your nickname. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign change your nickname.".to_string(), ctx, msg).await;
+
+                        say_something(
+                            "You now have all the roles and your Nickname was changed to your Minecraft Username.".to_string(),
+                            ctx,
+                            msg,
+                        )
+                            .await;
                         return;
                     }
-
-                    say_something(
-                        "You now have all the roles and your Nickname was changed to your Minecraft Username.".to_string(),
-                        ctx,
-                        msg,
-                    )
-                        .await;
-                    return;
+                } else {
+                    println!("role");
                 }
             } else {
-                println!("role");
+                println!("guild");
             }
         } else {
-            println!("guild");
+            println!("guild id");
         }
-    } else {
-        println!("guild id");
+        //when we are here some kind of Error occurred
+        say_something("Some Error occurred while trying to give you the Verified Role. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
+        return;
     }
-    //when we are here some kind of Error occurred
-    say_something("Some Error occurred while trying to give you the Verified Role. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
-    return;
 }
 
 #[derive(PartialEq)]

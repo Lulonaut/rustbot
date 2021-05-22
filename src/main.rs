@@ -8,6 +8,8 @@ use serenity::Client;
 use serenity::{async_trait, prelude::*};
 use tokio::runtime::Runtime;
 
+use crate::commands::command::{Command, CommandArgs};
+
 mod commands;
 mod features;
 
@@ -20,7 +22,27 @@ lazy_static! {
     static ref VERIFIED_ROLE: String = env::var("VERIFIED_ROLE")
         .expect("Please add a VERIFIED_ROLE to the .env")
         .replace("_", " ");
-    static ref COMMAND: String = format!("{}verify", PREFIX.to_string());
+    static ref VERIFY_COMMAND: String = format!("{}verify", PREFIX.to_string());
+    static ref LEADEARBORAD_COMMAND: String = format!("{}leaderboard", PREFIX.to_string());
+    static ref LOOKUP_COMMAND: String = "lookup".to_string();
+    static ref MESSAGE_LOOKUP_EXECUTOR: commands::message_lookup::CommandArgs =
+        commands::message_lookup::CommandArgs {
+            prefix: PREFIX.to_string(),
+            command: LOOKUP_COMMAND.to_string()
+        };
+    static ref VERIFY_COMMAND_EXECUTER: commands::verify_command::VerifyCommandArgs =
+        commands::verify_command::VerifyCommandArgs {
+            prefix: PREFIX.to_string(),
+            command: VERIFY_COMMAND.to_string(),
+            api_key: API_KEY.to_string(),
+            role_name: VERIFIED_ROLE.to_string()
+        };
+    static ref LEADERBOARD_COMMAND_EXECUTER: commands::message_leaderboard::CommandArgs = {
+        commands::message_leaderboard::CommandArgs {
+            prefix: PREFIX.to_string(),
+            command: LEADEARBORAD_COMMAND.to_string(),
+        }
+    };
 }
 
 async fn say_something(message: String, ctx: Context, msg: Message) {
@@ -47,16 +69,10 @@ impl EventHandler for Handler {
         //handle message addition async
         let handle = features::message_counting::handle_messages(msg.member(&ctx).await.unwrap());
         tokio::spawn(async { handle.await });
-        //execute verify command
-        commands::verify_command::execute_command(
-            ctx,
-            msg,
-            COMMAND.to_string(),
-            PREFIX.to_string(),
-            VERIFIED_ROLE.to_string(),
-            API_KEY.to_string(),
-        )
-        .await;
+        //execute commands
+        LEADERBOARD_COMMAND_EXECUTER.execute(&ctx, &msg).await;
+        VERIFY_COMMAND_EXECUTER.execute(&ctx, &msg).await;
+        MESSAGE_LOOKUP_EXECUTOR.execute(&ctx, &msg).await;
     }
 
     async fn ready(&self, _: Context, ready: Ready) {

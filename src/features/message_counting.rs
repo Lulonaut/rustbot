@@ -60,9 +60,10 @@ pub async fn handle_messages(member: Member) {
         guild[member_id.as_str()] = JsonValue::from(1);
     }
 
+    //write changes to file
     let mut file = File::create(path).unwrap();
     if let Err(err) = file.write_all(json.dump().to_string().as_bytes()) {
-        println!("Error while writing file. {}", err);
+        println!("Error while writing changes to file. {}", err);
         return;
     }
 }
