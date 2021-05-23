@@ -8,7 +8,7 @@ use serenity::Client;
 use serenity::{async_trait, prelude::*};
 use tokio::runtime::Runtime;
 
-use crate::commands::command::{Command, CommandArgs};
+use crate::commands::command::Command;
 
 mod commands;
 mod features;
@@ -22,8 +22,8 @@ lazy_static! {
     static ref VERIFIED_ROLE: String = env::var("VERIFIED_ROLE")
         .expect("Please add a VERIFIED_ROLE to the .env")
         .replace("_", " ");
-    static ref VERIFY_COMMAND: String = format!("{}verify", PREFIX.to_string());
-    static ref LEADEARBORAD_COMMAND: String = format!("{}leaderboard", PREFIX.to_string());
+    static ref VERIFY_COMMAND: String = "verify".to_string();
+    static ref LEADEARBORAD_COMMAND: String = "leaderboard".to_string();
     static ref LOOKUP_COMMAND: String = "lookup".to_string();
     static ref MESSAGE_LOOKUP_EXECUTOR: commands::message_lookup::CommandArgs =
         commands::message_lookup::CommandArgs {

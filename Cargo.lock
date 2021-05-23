@@ -1089,6 +1089,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
+name = "string-builder"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bd10a070fb1f2796a288abec42695db4682a82b6f12ffacd60fb8d5ad3a4a12"
+
+[[package]]
 name = "stuff"
 version = "0.1.0"
 dependencies = [
@@ -1098,6 +1104,7 @@ dependencies = [
  "reqwest",
  "serde_json",
  "serenity",
+ "string-builder",
  "tokio",
 ]
 

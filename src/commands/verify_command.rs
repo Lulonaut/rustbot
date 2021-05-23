@@ -22,7 +22,8 @@ pub struct VerifyCommandArgs {
 #[async_trait]
 impl Command for VerifyCommandArgs {
     async fn execute(&self, ctx: &Context, msg: &Message) {
-        if !msg.content.starts_with(&self.command) {
+        let command = format!("{}{}", self.prefix, self.command);
+        if !msg.content.starts_with(&command) {
             return;
         }
         let ctx = ctx.clone();
@@ -106,17 +107,20 @@ impl Command for VerifyCommandArgs {
             say_something("There was an Error while fetching your profile from the Discord API and therefore the bot can't assign you the roles. Please try again later".to_string(), ctx, msg).await;
             return;
         }
-        let mut member = member.unwrap();
+        let member = &mut member.unwrap();
+        let member2 = &mut member.clone();
 
         if let Some(guild_id) = msg.guild_id {
             if let Some(guild) = guild_id.to_guild_cached(&ctx).await {
                 if let Some(role_id) = guild.role_by_name(&*self.role_name) {
-                    if let Err(err) = member.add_role(&ctx, role_id).await {
+                    if let Err(err) = &member.add_role(&ctx, role_id).await {
                         println!("error while adding role {}", err);
                     } else {
                         //add new rank role and remove existing ones
-                        let current_roles = &member.roles;
+                        let mut member = member.clone();
+                        let current_roles = &mut member.roles;
                         for i in current_roles {
+                            let i = &*i;
                             if let Some(role) = i.to_role_cached(&ctx).await {
                                 //remove existing rank roles
                                 if role.name == "VIP".to_string()
@@ -125,9 +129,7 @@ impl Command for VerifyCommandArgs {
                                     || role.name == "MVP+".to_string()
                                     || role.name == "MVP++".to_string()
                                 {
-                                    //is it so hard to reference a variable a few times without borrowing and copying and whatever?
-                                    let mut member2 = msg.member(&ctx).await.unwrap();
-                                    if let Err(_) = member2.remove_role(&ctx, i).await {
+                                    if let Err(_) = &mut member2.remove_role(&ctx, i).await {
                                         say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
                                         return;
                                     }
@@ -154,15 +156,10 @@ impl Command for VerifyCommandArgs {
                             .await;
                         return;
                     }
-                } else {
-                    println!("role");
                 }
-            } else {
-                println!("guild");
             }
-        } else {
-            println!("guild id");
         }
+
         //when we are here some kind of Error occurred
         say_something("Some Error occurred while trying to give you the Verified Role. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
         return;

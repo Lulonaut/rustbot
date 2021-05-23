@@ -12,7 +12,9 @@ pub struct CommandArgs {
 #[async_trait]
 impl Command for CommandArgs {
     async fn execute(&self, ctx: &Context, msg: &Message) {
-        let ctx = ctx.clone();
-        let msg = msg.clone();
+        let command = format!("{}{}", self.prefix, self.command);
+        if !msg.content.starts_with(&command) {
+            return;
+        }
     }
 }

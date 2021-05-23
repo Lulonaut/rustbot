@@ -6,8 +6,3 @@ use serenity::model::channel::Message;
 pub trait Command {
     async fn execute(&self, ctx: &Context, msg: &Message);
 }
-
-pub struct CommandArgs {
-    prefix: String,
-    command: String,
-}
