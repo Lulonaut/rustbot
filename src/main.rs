@@ -14,6 +14,7 @@ mod commands;
 mod features;
 
 lazy_static! {
+    static ref REDIS_CLIENT: redis::Client = redis::Client::open("redis://127.0.0.1/").unwrap();
     static ref TOKEN: String =
         env::var("DISCORD_TOKEN").expect("Please add a DISCORD_TOKEN to the .env");
     static ref PREFIX: String = env::var("PREFIX").expect("Please add a PREFIX to the .env");
@@ -67,8 +68,10 @@ impl EventHandler for Handler {
             return;
         }
         //handle message addition async
-        let handle = features::message_counting::handle_messages(msg.member(&ctx).await.unwrap());
+        let handle =
+            features::message_counting::handle_messages_redis(msg.member(&ctx).await.unwrap());
         tokio::spawn(async { handle.await });
+
         //execute commands
         LEADERBOARD_COMMAND_EXECUTER.execute(&ctx, &msg).await;
         VERIFY_COMMAND_EXECUTER.execute(&ctx, &msg).await;

@@ -177,11 +177,11 @@ enum PossibleErrors {
 #[derive(PartialEq)]
 enum HypixelRanks {
     Default,
-    VIP,
-    VIPPLUS,
-    MVP,
-    MVPPLUS,
-    MVPPLUSPLUS,
+    Vip,
+    Vipplus,
+    Mvp,
+    Mvpplus,
+    Mvpplusplus,
 }
 
 struct ApiInfo {
@@ -193,11 +193,11 @@ struct ApiInfo {
 async fn get_rank_role(rank: HypixelRanks, ctx: &Context, msg: &Message) -> Option<Role> {
     let rank_string;
     match rank {
-        HypixelRanks::MVPPLUSPLUS => rank_string = "MVP++",
-        HypixelRanks::MVPPLUS => rank_string = "MVP+",
-        HypixelRanks::MVP => rank_string = "MVP",
-        HypixelRanks::VIPPLUS => rank_string = "VIP+",
-        HypixelRanks::VIP => rank_string = "VIP",
+        HypixelRanks::Mvpplusplus => rank_string = "MVP++",
+        HypixelRanks::Mvpplus => rank_string = "MVP+",
+        HypixelRanks::Mvp => rank_string = "MVP",
+        HypixelRanks::Vipplus => rank_string = "VIP+",
+        HypixelRanks::Vip => rank_string = "VIP",
         HypixelRanks::Default => return None,
     }
     if let Some(guild_id) = msg.guild_id {
@@ -227,16 +227,16 @@ fn get_rank(api_response: &Value) -> HypixelRanks {
     //check for MVP++
     if let Some(mpr) = player.get("monthlyPackageRank") {
         if mpr.as_str().unwrap() == "SUPERSTAR" {
-            return HypixelRanks::MVPPLUSPLUS;
+            return HypixelRanks::Mvpplusplus;
         }
     }
     if let Some(rank) = player.get("newPackageRank") {
         let rank = rank.as_str().unwrap();
         match rank {
-            "MVP_PLUS" => return HypixelRanks::MVPPLUS,
-            "MVP" => return HypixelRanks::MVP,
-            "VIP_PLUS" => return HypixelRanks::VIPPLUS,
-            "VIP" => return HypixelRanks::VIP,
+            "MVP_PLUS" => return HypixelRanks::Mvpplus,
+            "MVP" => return HypixelRanks::Mvp,
+            "VIP_PLUS" => return HypixelRanks::Vipplus,
+            "VIP" => return HypixelRanks::Vip,
             _ => {}
         }
     }

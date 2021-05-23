@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use redis::{Commands, RedisResult};
 use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::Message;
@@ -11,6 +12,7 @@ use string_builder::Builder;
 
 use crate::commands::command::Command;
 use crate::say_something;
+use crate::REDIS_CLIENT;
 
 pub struct CommandArgs {
     pub prefix: String,
@@ -27,69 +29,12 @@ impl Command for CommandArgs {
         let ctx = ctx.clone();
         let msg = msg.clone();
         //read contents of the file
-
-        let path = Path::new("messages.json");
-        if !path.exists() {
-            say_something("No data found.".to_string(), ctx, msg).await;
-            return;
-        }
-
-        let mut file = File::open(path).unwrap();
-        let mut contents = String::new();
-        if let Err(_) = file.read_to_string(&mut contents) {
+        let messages = get_messages(*msg.guild_id.unwrap().as_u64()).await;
+        if messages.is_none() {
             send_err(ctx, msg).await;
             return;
         }
-        //parse contents
-
-        let json = json::parse(contents.as_str());
-        if json.is_err() {
-            send_err(ctx, msg).await;
-            return;
-        }
-
-        let json = json.unwrap();
-
-        //check if this guild has data
-
-        if msg.guild_id.is_none() {
-            send_err(ctx, msg).await;
-            return;
-        }
-        let guild_id = msg.guild_id.unwrap().to_string();
-
-        if !json.has_key("messages") {
-            say_something(
-                "There are currently no messages stored for this Server.".to_string(),
-                ctx,
-                msg,
-            )
-            .await;
-            return;
-        }
-        let json = &json["messages"];
-        if !json.has_key(guild_id.as_str()) {
-            say_something(
-                "There are currently no messages stored for this Server.".to_string(),
-                ctx,
-                msg,
-            )
-            .await;
-            return;
-        }
-
-        //put all messages in map
-        let guild_messages = &json[guild_id.as_str()];
-        let mut messages: HashMap<u64, String> = HashMap::new();
-
-        for (key, value) in guild_messages.entries() {
-            let key = key.clone().to_string();
-            let value = value.as_u64();
-            if value.is_none() {
-                continue;
-            }
-            messages.insert(value.unwrap(), key);
-        }
+        let messages = messages.unwrap();
         //sort messages in Vector
         let mut sorted: Vec<_> = messages.iter().collect();
         sorted.sort_by_key(|w| Reverse(*w));
@@ -136,4 +81,35 @@ async fn send_err(ctx: Context, msg: Message) {
         msg,
     )
     .await;
+}
+
+async fn get_messages(guild_id: u64) -> Option<HashMap<u64, String>> {
+    let con = REDIS_CLIENT.get_connection();
+    if con.is_err() {
+        println!("Error while opening redis connection");
+        return None;
+    }
+    let mut con = con.unwrap();
+    let key = format!("verifybot:messages:{}", guild_id);
+    let result = redis::cmd("HGETALL").arg(&key).clone().iter(&mut con);
+    if result.is_err() {
+        println!("err {:?}", result.err());
+        return None;
+    }
+
+    let result: redis::Iter<String> = result.unwrap();
+    let mut messages: HashMap<u64, String> = HashMap::new();
+    let mut key = true;
+    let mut current_key: String = "".to_string();
+    for x in result {
+        if key {
+            current_key = x;
+            key = false;
+        } else {
+            messages.insert(x.parse().unwrap(), current_key.clone());
+            key = true;
+        }
+    }
+
+    return Some(messages);
 }
