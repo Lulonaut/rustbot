@@ -1,10 +1,6 @@
 use std::cmp::Reverse;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Read;
-use std::path::Path;
 
-use redis::{Commands, RedisResult};
 use serenity::async_trait;
 use serenity::client::Context;
 use serenity::model::channel::Message;
