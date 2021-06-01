@@ -26,6 +26,7 @@ lazy_static! {
     static ref VERIFY_COMMAND: String = "verify".to_string();
     static ref LEADEARBORAD_COMMAND: String = "leaderboard".to_string();
     static ref LOOKUP_COMMAND: String = "lookup".to_string();
+    static ref SET_GUILD_COMMAND: String = "setguild".to_string();
     static ref MESSAGE_LOOKUP_EXECUTOR: commands::message_lookup::CommandArgs =
         commands::message_lookup::CommandArgs {
             prefix: PREFIX.to_string(),
@@ -42,6 +43,12 @@ lazy_static! {
         commands::message_leaderboard::CommandArgs {
             prefix: PREFIX.to_string(),
             command: LEADEARBORAD_COMMAND.to_string(),
+        }
+    };
+    static ref SET_GUILD_COMMAND_EXECUTER: commands::set_guild::CommandArgs = {
+        commands::set_guild::CommandArgs {
+            prefix: PREFIX.to_string(),
+            command: SET_GUILD_COMMAND.to_string(),
         }
     };
 }
@@ -76,6 +83,7 @@ impl EventHandler for Handler {
         LEADERBOARD_COMMAND_EXECUTER.execute(&ctx, &msg).await;
         VERIFY_COMMAND_EXECUTER.execute(&ctx, &msg).await;
         MESSAGE_LOOKUP_EXECUTOR.execute(&ctx, &msg).await;
+        SET_GUILD_COMMAND_EXECUTER.execute(&ctx, &msg).await;
     }
 
     async fn ready(&self, _: Context, ready: Ready) {

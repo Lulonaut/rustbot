@@ -1,5 +1,8 @@
 use std::time::Duration;
 
+use redis::Commands;
+use redis::ErrorKind;
+use redis::RedisResult;
 use serde_json::Value;
 use serenity::async_trait;
 use serenity::model::channel::Message;
@@ -11,6 +14,7 @@ use crate::commands::verify_command::PossibleErrors::{
     DiscordNotLinked, HypixelAPIError, InvalidUsername, MojangAPIError,
 };
 use crate::say_something;
+use crate::REDIS_CLIENT;
 
 pub struct VerifyCommandArgs {
     pub prefix: String,
@@ -59,9 +63,9 @@ impl Command for VerifyCommandArgs {
         //get discord linked to username
         let api_key = &self.api_key;
         let api_key = api_key.clone();
-        let discord = get_info(String::from(username), api_key).await;
-        if discord.is_err() {
-            let error = discord.err().unwrap();
+        let info = get_info(String::from(username), api_key).await;
+        if info.is_err() {
+            let error = info.err().unwrap();
             if error == PossibleErrors::DiscordNotLinked {
                 say_something("This User doesn't have any Discord linked on Hypixel. If you just changed it wait a few minutes and try again.".to_string(), ctx, msg).await;
                 return;
@@ -89,10 +93,11 @@ impl Command for VerifyCommandArgs {
             return;
         }
 
-        let discord = discord.ok().unwrap();
+        let discord = info.ok().unwrap();
         let linked_discord = discord.discord;
         let rank = discord.rank;
         let username = discord.username;
+        let user_guild = discord.guild;
 
         let user_discord: String =
             msg.author.name.to_string() + "#" + &*msg.author.discriminator.to_string();
@@ -159,9 +164,39 @@ impl Command for VerifyCommandArgs {
                             return;
                         }
 
+                        //change username
                         if let Err(_) = member.edit(&ctx, |m| m.nickname(username)).await {
                             say_something("The bot was unable to change your nickname. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign change your nickname.".to_string(), ctx, msg).await;
                             return;
+                        }
+                        //check if guild matches
+                        let con = REDIS_CLIENT.get_connection();
+                        if con.is_err() {
+                            say_something("Some error occured while trying to get Hypixel Guild Info but you should still have the roles.".to_string(), ctx, msg).await;
+                            return;
+                        }
+                        let mut con = con.unwrap();
+
+                        let key = format!("verifybot:config:{}", guild_id);
+                        let guild_stored: RedisResult<String> = con.hget(key, "minecraft_guild");
+                        if guild_stored.is_err() {
+                            //TypeError means its probably nil
+                            if guild_stored.err().unwrap().kind() != ErrorKind::TypeError {
+                                say_something("An Error occured while trying to get the Minecraft Guild set for this Server but you should still have the roles".to_string(), ctx, msg).await;
+                                return;
+                            }
+                        } else {
+                            if guild_stored.unwrap() == user_guild {
+                                if let Some(role_id) = guild.role_by_name("Guild Member") {
+                                    if let Err(_) = member.add_role(&ctx, role_id).await {
+                                        say_something("There as an Error assigning you the Guild Member role but you should still have the other roles".to_string(), ctx, msg).await;
+                                        return;
+                                    }
+                                } else {
+                                    say_something("There was an Error retreiving the Guild Member role but you should still have the other roles".to_string(), ctx, msg).await;
+                                    return;
+                                }
+                            }
                         }
 
                         say_something(
@@ -204,6 +239,7 @@ struct ApiInfo {
     discord: String,
     rank: HypixelRanks,
     username: String,
+    guild: String,
 }
 
 async fn get_rank_role(rank: HypixelRanks, ctx: &Context, msg: &Message) -> Option<Role> {
@@ -224,6 +260,37 @@ async fn get_rank_role(rank: HypixelRanks, ctx: &Context, msg: &Message) -> Opti
         }
     }
     return None;
+}
+
+async fn get_guild(player_uuid: String, api_key: String) -> String {
+    let url = format!(
+        "https://api.hypixel.net/guild?key={}&player={}",
+        api_key, player_uuid
+    );
+
+    let client = reqwest::ClientBuilder::new()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .unwrap();
+
+    let response = client.get(url).send().await;
+
+    if response.is_err() {
+        return "".to_string();
+    }
+
+    let json = serde_json::from_str(response.unwrap().text().await.unwrap().as_str());
+    if json.is_err() {
+        return "".to_string();
+    }
+    let json: Value = json.expect("");
+    if let Some(guild) = json.get("guild") {
+        if let Some(name) = guild.get("name") {
+            return name.as_str().unwrap().to_string();
+        }
+    }
+
+    return "".to_string();
 }
 
 fn get_rank(api_response: &Value) -> HypixelRanks {
@@ -330,6 +397,7 @@ async fn get_info(username: String, api_key: String) -> Result<ApiInfo, Possible
     }
     let rank = get_rank(&json);
     let username = get_username(&json);
+    let guild = get_guild(uuid, api_key).await;
 
     if let Some(player) = json.get("player") {
         if let Some(social_media) = player.get("socialMedia") {
@@ -341,6 +409,7 @@ async fn get_info(username: String, api_key: String) -> Result<ApiInfo, Possible
                         discord: sliced.to_string(),
                         rank,
                         username,
+                        guild,
                     });
                 }
             }
