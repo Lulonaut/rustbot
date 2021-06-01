@@ -119,9 +119,26 @@ impl Command for VerifyCommandArgs {
                         //add new rank role and remove existing ones
                         let mut member = member.clone();
                         let current_roles = &mut member.roles;
+                        let role = get_rank_role(rank, &ctx, &msg).await;
+                        if role.is_none() {
+                            say_something(
+                                "Error while getting Rank roles, maybe they dont exist?"
+                                    .to_string(),
+                                ctx,
+                                msg,
+                            )
+                            .await;
+                            return;
+                        }
+                        let rank_role = role.unwrap();
+
                         for i in current_roles {
                             let i = &*i;
+
                             if let Some(role) = i.to_role_cached(&ctx).await {
+                                if rank_role == role {
+                                    continue;
+                                }
                                 //remove existing rank roles
                                 if role.name == "VIP".to_string()
                                     || role.name == "VIP+".to_string()
@@ -137,12 +154,11 @@ impl Command for VerifyCommandArgs {
                             }
                         }
                         //add current rank role
-                        if let Some(role) = get_rank_role(rank, &ctx, &msg).await {
-                            if let Err(_) = member.add_role(&ctx, role.id).await {
-                                say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles. Also make sure the roles exist.".to_string(), ctx, msg).await;
-                                return;
-                            }
+                        if let Err(_) = member.add_role(&ctx, rank_role.id).await {
+                            say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles. Also make sure the roles exist.".to_string(), ctx, msg).await;
+                            return;
                         }
+
                         if let Err(_) = member.edit(&ctx, |m| m.nickname(username)).await {
                             say_something("The bot was unable to change your nickname. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign change your nickname.".to_string(), ctx, msg).await;
                             return;
