@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::time::Duration;
 
 use redis::Commands;
@@ -99,8 +100,13 @@ impl Command for VerifyCommandArgs {
         let username = discord.username;
         let user_guild = discord.guild;
 
+        let mut discriminator: String = msg.author.discriminator.to_string();
+        if discriminator.len() == 3 {
+            discriminator = format!("0{}", discriminator);
+        }
+
         let user_discord: String =
-            msg.author.name.to_string() + "#" + &*msg.author.discriminator.to_string();
+            msg.author.name.to_string() + "#" + discriminator.as_str();
 
         if !(linked_discord == user_discord) {
             say_something(format!("The linked Username `{}` doesn't match your Discord Username: `{}`. If you just changed this wait a bit and try again.", linked_discord, user_discord), ctx, msg).await;
