@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::time::Duration;
 
 use redis::Commands;
