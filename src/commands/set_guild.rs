@@ -49,7 +49,7 @@ impl Command for CommandArgs {
             return;
         }
 
-        let mut split = msg.content.splitn(2, " ");
+        let mut split = msg.content.splitn(2, ' ');
         let count = split.clone().count();
         if count != 2 {
             say_something(format!("Invalid usage: {} [name]", command), ctx, msg).await;
@@ -78,7 +78,7 @@ async fn save_to_db(guild_id: String, minecraft_guild_name: String) -> bool {
         .arg("minecraft_guild")
         .arg(&minecraft_guild_name)
         .execute(&mut con.unwrap());
-    return true;
+    true
 }
 
 async fn send_err(ctx: Context, msg: Message) {

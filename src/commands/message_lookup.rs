@@ -26,13 +26,13 @@ impl Command for CommandArgs {
 
         let user_id: String;
 
-        let split = msg.content.split(" ");
+        let split = msg.content.split(' ');
         if split.count() == 2 {
-            let mut iter = msg.content.splitn(2, " ");
+            let mut iter = msg.content.splitn(2, ' ');
             let _ = iter.next().unwrap();
             let user = iter.next().unwrap().to_string();
             //Message contains "&" if a role was mentioned
-            if user.contains("&") {
+            if user.contains('&') {
                 say_something("Invalid User".to_string(), ctx, msg).await;
                 return;
             }

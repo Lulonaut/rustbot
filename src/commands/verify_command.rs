@@ -34,7 +34,7 @@ impl Command for VerifyCommandArgs {
         let msg = msg.clone();
 
         //check for correct usage
-        let args = msg.content.split(" ");
+        let args = msg.content.split(' ');
         if args.count() != 2 {
             say_something(
                 format!("Invalid usage: `{}verify Username`", self.prefix),
@@ -45,7 +45,7 @@ impl Command for VerifyCommandArgs {
             return;
         }
         //get username
-        let mut iter = msg.content.splitn(2, " ");
+        let mut iter = msg.content.splitn(2, ' ');
         let _ = iter.next().unwrap();
         let username = iter.next().unwrap();
         if 3 > username.len() || username.len() > 16 {
@@ -107,7 +107,7 @@ impl Command for VerifyCommandArgs {
         let user_discord: String =
             msg.author.name.to_string() + "#" + discriminator.as_str();
 
-        if !(linked_discord == user_discord) {
+        if linked_discord != user_discord {
             say_something(format!("The linked Username `{}` doesn't match your Discord Username: `{}`. If you just changed this wait a bit and try again.", linked_discord, user_discord), ctx, msg).await;
             return;
         }
@@ -150,11 +150,11 @@ impl Command for VerifyCommandArgs {
                                     continue;
                                 }
                                 //remove existing rank roles
-                                if role.name == "VIP".to_string()
-                                    || role.name == "VIP+".to_string()
-                                    || role.name == "MVP".to_string()
-                                    || role.name == "MVP+".to_string()
-                                    || role.name == "MVP++".to_string()
+                                if role.name == *"VIP"
+                                    || role.name == *"VIP+"
+                                    || role.name == *"MVP"
+                                    || role.name == *"MVP+"
+                                    || role.name == *"MVP++"
                                 {
                                     if let Err(_) = &mut member2.remove_role(&ctx, i).await {
                                         say_something("Some kind of Error occurred while trying to give you the role for your Rank. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign you the roles.".to_string(), ctx, msg).await;
@@ -190,17 +190,15 @@ impl Command for VerifyCommandArgs {
                                 say_something("An Error occured while trying to get the Minecraft Guild set for this Server but you should still have the roles".to_string(), ctx, msg).await;
                                 return;
                             }
-                        } else {
-                            if guild_stored.unwrap() == user_guild {
-                                if let Some(role_id) = guild.role_by_name("Guild Member") {
-                                    if let Err(_) = member.add_role(&ctx, role_id).await {
-                                        say_something("There as an Error assigning you the Guild Member role but you should still have the other roles".to_string(), ctx, msg).await;
-                                        return;
-                                    }
-                                } else {
-                                    say_something("There was an Error retreiving the Guild Member role but you should still have the other roles".to_string(), ctx, msg).await;
+                        } else if guild_stored.unwrap() == user_guild {
+                            if let Some(role_id) = guild.role_by_name("Guild Member") {
+                                if let Err(_) = member.add_role(&ctx, role_id).await {
+                                    say_something("There as an Error assigning you the Guild Member role but you should still have the other roles".to_string(), ctx, msg).await;
                                     return;
                                 }
+                            } else {
+                                say_something("There was an Error retreiving the Guild Member role but you should still have the other roles".to_string(), ctx, msg).await;
+                                return;
                             }
                         }
 
@@ -264,7 +262,7 @@ async fn get_rank_role(rank: HypixelRanks, ctx: &Context, msg: &Message) -> Opti
             }
         }
     }
-    return None;
+    None
 }
 
 async fn get_guild(player_uuid: String, api_key: String) -> String {
@@ -295,7 +293,7 @@ async fn get_guild(player_uuid: String, api_key: String) -> String {
         }
     }
 
-    return "".to_string();
+    "".to_string()
 }
 
 fn get_rank(api_response: &Value) -> HypixelRanks {
@@ -303,7 +301,7 @@ fn get_rank(api_response: &Value) -> HypixelRanks {
     let player = api_response.get("player").unwrap();
 
     //check for owner and other weird ranks (eg: Technoblade Pig rank)
-    if let Some(_) = player.get("prefix") {
+    if player.get("prefix").is_some() {
         return HypixelRanks::Default;
     }
     //check for staff
@@ -329,7 +327,7 @@ fn get_rank(api_response: &Value) -> HypixelRanks {
         }
     }
 
-    return HypixelRanks::Default;
+    HypixelRanks::Default
 }
 
 fn get_username(api_response: &Value) -> String {
@@ -368,7 +366,7 @@ async fn get_info(username: String, api_key: String) -> Result<ApiInfo, Possible
     let json: Value = json.expect("");
 
     //check for invalid username
-    if let Some(_) = json.get("error") {
+    if json.get("error").is_some() {
         return Err(InvalidUsername);
     }
 
@@ -396,7 +394,7 @@ async fn get_info(username: String, api_key: String) -> Result<ApiInfo, Possible
         return Err(HypixelAPIError);
     }
     let json: Value = json.expect("");
-    if let Some(_) = json.get("player") {
+    if json.get("player").is_some() {
     } else {
         return Err(HypixelAPIError);
     }

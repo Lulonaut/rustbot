@@ -107,5 +107,5 @@ async fn get_messages(guild_id: u64) -> Option<HashMap<u64, String>> {
         }
     }
 
-    return Some(messages);
+    Some(messages)
 }

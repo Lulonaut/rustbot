@@ -55,7 +55,7 @@ lazy_static! {
 
 async fn say_something(message: String, ctx: Context, msg: Message) {
     if let Err(_) = msg.channel_id.say(&ctx.http, message).await {}
-    return;
+    
 }
 
 struct Handler;
