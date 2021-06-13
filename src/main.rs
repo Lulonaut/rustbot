@@ -3,6 +3,7 @@ use std::env;
 use dotenv::dotenv;
 use lazy_static::lazy_static;
 use serenity::client::bridge::gateway::GatewayIntents;
+use serenity::model::prelude::Activity;
 use serenity::model::{channel::Message, gateway::Ready, guild::Member, id::GuildId};
 use serenity::Client;
 use serenity::{async_trait, prelude::*};
@@ -55,7 +56,6 @@ lazy_static! {
 
 async fn say_something(message: String, ctx: Context, msg: Message) {
     if let Err(_) = msg.channel_id.say(&ctx.http, message).await {}
-    
 }
 
 struct Handler;
@@ -86,7 +86,9 @@ impl EventHandler for Handler {
         SET_GUILD_COMMAND_EXECUTER.execute(&ctx, &msg).await;
     }
 
-    async fn ready(&self, _: Context, ready: Ready) {
+    async fn ready(&self, ctx: Context, ready: Ready) {
+        ctx.set_activity(Activity::watching("https://github.com/Lulonaut/rustbot"))
+            .await;
         println!("Connected as {}", ready.user.name);
     }
 }
@@ -105,7 +107,6 @@ async fn main() {
         .event_handler(Handler)
         .await
         .expect("Error while building Bot client");
-
     if let Err(why) = client.start().await {
         println!("Error while starting {:?}", why);
     }
