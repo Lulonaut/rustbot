@@ -26,7 +26,11 @@ impl Command for CommandArgs {
             return;
         }
 
-        let member = guild.clone().unwrap().member(&ctx.http, msg.author.id).await;
+        let member = guild
+            .clone()
+            .unwrap()
+            .member(&ctx.http, msg.author.id)
+            .await;
         if member.is_err() {
             send_err(ctx, msg).await;
             return;
@@ -49,16 +53,15 @@ impl Command for CommandArgs {
             return;
         }
 
-        let mut split = msg.content.splitn(2, ' ');
-        let count = split.clone().count();
-        if count != 2 {
+        let split: Vec<&str> = msg.content.split(" ").collect();
+        let size = split.clone().len();
+        if size != 2 {
             say_something(format!("Invalid usage: {} [name]", command), ctx, msg).await;
             return;
         }
 
-        let _ = split.next().unwrap();
-        let guild_name = split.next().unwrap().to_string();
-        let res = save_to_db(guild.unwrap().id.to_string(), guild_name).await;
+        let guild_name = split[2];
+        let res = save_to_db(guild.unwrap().id.to_string(), guild_name.to_string()).await;
         if !res {
             send_err(ctx, msg).await;
             return;

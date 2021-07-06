@@ -45,9 +45,7 @@ impl Command for VerifyCommandArgs {
             return;
         }
         //get username
-        let mut iter = msg.content.splitn(2, ' ');
-        let _ = iter.next().unwrap();
-        let username = iter.next().unwrap();
+        let username = msg.content.split(" ").collect::<Vec<&str>>()[1];
         if 3 > username.len() || username.len() > 16 {
             say_something(
                 format!(
@@ -178,7 +176,7 @@ impl Command for VerifyCommandArgs {
 
                         //change username
                         if let Err(_) = member.edit(&ctx, |m| m.nickname(username)).await {
-                            say_something("The bot was unable to change your nickname. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't assign change your nickname.".to_string(), ctx, msg).await;
+                            say_something("The bot was unable to change your nickname. This probably has to do something with permissions: Make sure the bot is over you in the Role hierarchy otherwise it can't change your nickname.".to_string(), ctx, msg).await;
                             return;
                         }
                         //check if guild matches
